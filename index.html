@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pense-bête — traqueur de tâches</title>
+<style>
+:root{--bg:#e9efe6;--paper:#fbfdf9;--ink:#1d2b24;--muted:#66756c;--line:#c9d5c8;--accent:#1f6f5b;--warn:#b5472f}
+@media (prefers-color-scheme:dark){:root{--bg:#14201b;--paper:#1c2b25;--ink:#e6efe8;--muted:#8ea396;--line:#2f4339;--accent:#5fc3a5;--warn:#e58a70}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.5 Georgia,"Iowan Old Style",serif;min-height:100vh;display:flex;justify-content:center;padding:32px 16px}
+main{width:100%;max-width:560px}
+h1{font-size:2.2rem;margin:0 0 4px;letter-spacing:-.02em}
+.sub{color:var(--muted);margin:0 0 24px}
+form{display:flex;gap:8px;margin-bottom:16px}
+input[type=text]{flex:1;padding:12px 14px;font:inherit;background:var(--paper);color:var(--ink);border:1.5px solid var(--line);border-radius:6px}
+button{font:inherit;cursor:pointer;border-radius:6px;border:1.5px solid var(--accent);background:var(--accent);color:var(--paper);padding:12px 18px}
+button.ghost{background:transparent;color:var(--ink);border-color:var(--line);padding:6px 12px;font-size:.9rem}
+button.ghost[aria-pressed=true]{border-color:var(--accent);color:var(--accent)}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.filters{display:flex;gap:8px;margin-bottom:12px}
+ul{list-style:none;margin:0;padding:0;background:var(--paper);border:1.5px solid var(--line);border-radius:8px}
+li{display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid var(--line)}
+li:last-child{border-bottom:0}
+li input{width:20px;height:20px;accent-color:var(--accent)}
+li span{flex:1;word-break:break-word}
+li.done span{text-decoration:line-through;color:var(--muted)}
+li .del{background:none;border:0;color:var(--warn);padding:4px 8px;font-size:1.2rem}
+.empty{padding:28px 14px;color:var(--muted);text-align:center}
+footer{display:flex;justify-content:space-between;align-items:center;margin-top:12px;color:var(--muted);font-size:.95rem}
+footer button{border:0;background:none;color:var(--warn);padding:4px;font-size:.95rem;text-decoration:underline}
+</style>
+</head>
+<body>
+<main>
+  <h1>Pense-bête</h1>
+  <p class="sub">Ajoutez une tâche, cochez-la quand c'est fait.</p>
+
+  <form id="form">
+    <input type="text" id="input" placeholder="Que faut-il faire ?" aria-label="Nouvelle tâche" required maxlength="120" autocomplete="off">
+    <button type="submit">Ajouter</button>
+  </form>
+
+  <div class="filters" role="group" aria-label="Filtrer les tâches">
+    <button class="ghost" data-filter="all" aria-pressed="true">Toutes</button>
+    <button class="ghost" data-filter="todo" aria-pressed="false">À faire</button>
+    <button class="ghost" data-filter="done" aria-pressed="false">Terminées</button>
+  </div>
+
+  <ul id="list"></ul>
+
+  <footer>
+    <span id="count"></span>
+    <button id="clear" type="button">Supprimer les terminées</button>
+  </footer>
+</main>
+
+<script>
+const KEY = "pense-bete:tasks";
+let tasks = [], filter = "all";
+try { tasks = JSON.parse(localStorage.getItem(KEY)) || []; } catch (e) { tasks = []; }
+
+const $ = id => document.getElementById(id);
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(tasks)); } catch (e) {} };
+
+function render() {
+  const shown = tasks.filter(t => filter === "all" || (filter === "done") === t.done);
+  const list = $("list");
+  list.innerHTML = "";
+  if (!shown.length) {
+    list.innerHTML = '<li class="empty">Aucune tâche ici. Ajoutez-en une ci-dessus.</li>';
+  }
+  shown.forEach(t => {
+    const li = document.createElement("li");
+    if (t.done) li.className = "done";
+    const cb = document.createElement("input");
+    cb.type = "checkbox"; cb.checked = t.done;
+    cb.setAttribute("aria-label", "Terminer : " + t.text);
+    cb.onchange = () => { t.done = cb.checked; save(); render(); };
+    const sp = document.createElement("span");
+    sp.textContent = t.text;
+    const del = document.createElement("button");
+    del.className = "del"; del.textContent = "×";
+    del.setAttribute("aria-label", "Supprimer : " + t.text);
+    del.onclick = () => { tasks = tasks.filter(x => x.id !== t.id); save(); render(); };
+    li.append(cb, sp, del);
+    list.append(li);
+  });
+  const left = tasks.filter(t => !t.done).length;
+  $("count").textContent = left + (left > 1 ? " tâches restantes" : " tâche restante");
+  $("clear").hidden = !tasks.some(t => t.done);
+}
+
+$("form").onsubmit = e => {
+  e.preventDefault();
+  const text = $("input").value.trim();
+  if (!text) return;
+  tasks.unshift({ id: Date.now(), text, done: false });
+  $("input").value = "";
+  save(); render();
+};
+$("clear").onclick = () => { tasks = tasks.filter(t => !t.done); save(); render(); };
+document.querySelectorAll("[data-filter]").forEach(b => b.onclick = () => {
+  filter = b.dataset.filter;
+  document.querySelectorAll("[data-filter]").forEach(x => x.setAttribute("aria-pressed", x === b));
+  render();
+});
+render();
+</script>
+</body>
+</html>
